@@ -172,49 +172,14 @@ def main():
 
 
         if len(events) == 0: # If no events in window, can choose to provide the time passed to apply decay to existing surface anyways
-            grid, patch_scores, patch_decay_factors = leaky_model.integrateEvents(events, time_diff_s=duration)
+            surface, patch_scores, patch_decay_factors = leaky_model.integrateEvents(events, time_diff_s=duration)
         else:
-            if leaky_model.old_grid_time == 0: # first (non-empty) event window, initialize old_grid_time
-                leaky_model.old_grid_time = events[0,0]
+            if leaky_model.old_surface_time == 0: # first (non-empty) event window, initialize old_surface_time
+                leaky_model.old_surface_time = events[0,0]
 
-            grid, patch_scores, patch_decay_factors = leaky_model.integrateEvents(events, )
+            surface, patch_scores, patch_decay_factors = leaky_model.integrateEvents(events)
 
-            frame = grid_tensor_to_img(grid, patch_scores, patch_decay_factors, 
-                                       clip_val=args.clip_val, 
-                                       draw_heatmap=args.draw_heatmap, 
-                                       draw_grid=args.draw_grid, 
-                                       annotate_score=args.annotate_score, 
-                                       annotate_decay=args.annotate_decay, 
-                                       recursive=args.recursive_fft)
-
-
-            if not isinstance(args.clip_val, tuple):
-                clip_val = (-args.clip_val, args.clip_val)
-            else:
-                clip_val = args.clip_val
-            # grid = grid.abs()
-
-            grid = grid.clamp(clip_val[0],clip_val[1])
-            if args.greyscale:
-                
-                grid = (grid - clip_val[0]) / (clip_val[1] - clip_val[0]) # normalize to [0,1]
-                # grid = 1- grid
-                frame = grid.squeeze(0).detach().cpu().numpy()
-                frame = np.stack((frame,frame,frame), axis=2)
-                frame = (frame*255).astype(np.uint8)
-            else:
-                # negative values to blue, positive to red
-                blue_channel = torch.zeros_like(grid)
-                red_channel = torch.zeros_like(grid)
-                blue_channel[grid<0] = -grid[grid<0]
-                red_channel[grid>0] = grid[grid>0]
-                colour_grid = torch.stack((blue_channel, torch.zeros_like(grid), red_channel), dim=0)  # BGR order for OpenCV
-                colour_grid = colour_grid / clip_val[1] # normalize to [0,1]
-                frame = colour_grid.permute(1,2,0).detach().cpu().numpy()
-                # replace black pixels with white
-                frame[np.where((frame==0).all(axis=2))] = 1.0
-                frame = (frame*255).astype(np.uint8)
-
+        frame = surface_to_output_img(args, surface, patch_scores, patch_decay_factors)
         cv2.imwrite(os.path.join(frame_dir,f"{str(count).zfill(4)}.png"), frame)
 
         if args.max_frames is not None and count >= args.start_frame + args.max_frames - 1:
@@ -317,7 +282,44 @@ def load_event_windows(args):
             events = all_events[ev_en:]
             event_windows.append(events)
     print(len(event_windows), "event windows")
+
     return event_windows
+
+def surface_to_output_img(args, surface, patch_scores, patch_decay_factors):
+    img = grid_tensor_to_img(surface, patch_scores, patch_decay_factors, 
+                               clip_val=args.clip_val, 
+                               draw_heatmap=args.draw_heatmap, 
+                               draw_grid=args.draw_grid, 
+                               annotate_score=args.annotate_score, 
+                               annotate_decay=args.annotate_decay, 
+                               recursive=args.recursive_fft)
+
+
+    if not isinstance(args.clip_val, tuple):
+        clip_val = (-args.clip_val, args.clip_val)
+    else:
+        clip_val = args.clip_val
+        
+    surface = surface.clamp(clip_val[0],clip_val[1])
+
+    if args.greyscale:
+        surface = (surface - clip_val[0]) / (clip_val[1] - clip_val[0]) # normalize to [0,1]
+        img = surface.squeeze(0).detach().cpu().numpy()
+        img = np.stack((img,img,img), axis=2)
+        img = (img*255).astype(np.uint8)
+    else:
+        # negative values to blue, positive to red
+        blue_channel = torch.zeros_like(surface)
+        red_channel = torch.zeros_like(surface)
+        blue_channel[surface<0] = -surface[surface<0]
+        red_channel[surface>0] = surface[surface>0]
+        colour_surface = torch.stack((blue_channel, torch.zeros_like(surface), red_channel), dim=0)  # BGR order for OpenCV
+        colour_surface = colour_surface / clip_val[1] # normalize to [0,1]
+        img = colour_surface.permute(1,2,0).detach().cpu().numpy()
+        # replace black pixels with white
+        img[np.where((img==0).all(axis=2))] = 1.0
+        img = (img*255).astype(np.uint8)
+    return img
 
 if __name__ == '__main__':
     main()

@@ -14,9 +14,9 @@ class LADS:
         self.device = device
         self.W = W
         self.H = H
-        self.old_grid = torch.zeros((H,W),dtype=torch.float,device=device)
-        self.old_grid_time = 0
-        self.grid_time_initialized = False
+        self.old_surface = torch.zeros((H,W),dtype=torch.float,device=device)
+        self.old_surface_time = 0
+        self.surface_time_initialized = False
         self.ts_to_seconds_factor = ts_to_seconds_factor
         self.num_bins = num_bins
         self.interpolate_patches = interpolate_patches
@@ -215,33 +215,33 @@ class LADS:
     '''
     ============================= MISC =============================
     '''
-    def _update_grid(self, decay_factor, new_events=None, new_grid=None):
+    def _update_surface(self, decay_factor, new_events=None, new_grid=None):
         assert (new_grid is not None or new_events is not None), "Either new_events or new_grid must be provided for update_grid."
         
         if new_grid is None:
             new_grid = voxel(new_events, self.H, self.W, self.device, polarity_mapping=(-1, 1)).squeeze(0)
 
-        self.old_grid = new_grid + self.old_grid*decay_factor
-        return self.old_grid
+        self.old_surface = new_grid + self.old_surface*decay_factor
+        return self.old_surface
 
     def integrateEvents(self, events, return_patch_features=False, time_diff_s=None):
 
         ''' TIME INITIALIZATION '''
 
-        if not self.grid_time_initialized:
+        if not self.surface_time_initialized:
             if len(events) > 0:
-                self.old_grid_time = events[0][0]
-                self.grid_time_initialized = True
+                self.old_surface_time = events[0][0]
+                self.surface_time_initialized = True
 
         if time_diff_s is None: # elapsed time for decay can be provided, otherwise calculate it
             if events.dtype.names is None:
-                time_diff_s = (events[-1][0] - self.old_grid_time) / self.ts_to_seconds_factor
-                self.old_grid_time = events[-1][0]
+                time_diff_s = (events[-1][0] - self.old_surface_time) / self.ts_to_seconds_factor
+                self.old_surface_time = events[-1][0]
             else:
-                time_diff_s = (events['t'][-1] - self.old_grid_time) / self.ts_to_seconds_factor
-                self.old_grid_time = events['t'][-1]
+                time_diff_s = (events['t'][-1] - self.old_surface_time) / self.ts_to_seconds_factor
+                self.old_surface_time = events['t'][-1]
         else:
-            self.old_grid_time += time_diff_s
+            self.old_surface_time += time_diff_s
             
         assert time_diff_s >= 0, "Time difference must be positive, got {}".format(time_diff_s)
 
@@ -251,20 +251,20 @@ class LADS:
             ''' GLOBAL DECAY '''
             if self.decay_func == "global-li":
                 if self.decay == 0: # Taken to mean full decay of past events, i.e. Histogram
-                    return self._update_grid(0, new_events=events)
+                    return self._update_surface(0, new_events=events)
                 decay_factor = torch.exp(-torch.scalar_tensor(time_diff_s / self.decay, device=self.device))
-                return self._update_grid(decay_factor, new_events=events)
+                return self._update_surface(decay_factor, new_events=events)
                 
             if not self.do_patch_decay:
                 if self.decay_func == "er":
                     decay_factor, score = self.decay_by_event_rate_exp(events, time_diff_s, use_patches=False)
                     decay_factor = torch.tensor(decay_factor, device=self.device).clamp(0, 1-self.min_decay)
-                    return self._update_grid(decay_factor, new_events=events)
+                    return self._update_surface(decay_factor, new_events=events)
                 
                 elif self.decay_func == "event-rate-linear":
                     decay_factor, score = self.decay_by_event_rate_linear(events, time_diff_s, use_patches=False)
                     decay_factor = torch.tensor(decay_factor, device=self.device).clamp(0, 1-self.min_decay)
-                    return self._update_grid(decay_factor, new_events=events)
+                    return self._update_surface(decay_factor, new_events=events)
 
                 else:
                     print(f"Warning: {self.decay_func} decay is not implemented non-patched, continuing with default patch params.")
@@ -305,10 +305,10 @@ class LADS:
             # Clamp decay factors
             patch_decay_factors = patch_decay_factors.clamp(0,1-self.min_decay)
             
-            # Apply decay factors to old grid
-            self.old_grid = new_grid + self.old_grid*patch_decay_factors
+            # Apply decay factors to old surface
+            self.old_surface = new_grid + self.old_surface*patch_decay_factors
 
-            return self.old_grid, patch_scores, patch_decay_factors
+            return self.old_surface, patch_scores, patch_decay_factors
     
     def recurr_with_init_patches(self, patches):
         ph, pw = patches.shape[-2:]
