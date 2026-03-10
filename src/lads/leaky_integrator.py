@@ -89,14 +89,14 @@ class LADS:
     def decay_by_event_rate_exp(self, events, time_diff_s, use_patches=False):
         
         if not use_patches:
-            if time_diff_s <= 0:
+            if time_diff_s <= 0 or len(events) == 0:
                 return 1, 0
             event_rate = len(events) / time_diff_s
             score = event_rate / self.reference_event_rate
             decay_factor = np.exp((-(self.decay*score)))
             return decay_factor, score
         else:
-            if time_diff_s <= 0:
+            if time_diff_s <= 0 or len(events) == 0:
                 return torch.ones((self.H//self.patch_size[0], self.W//self.patch_size[1]), device=self.device), \
                        torch.zeros((self.H//self.patch_size[0], self.W//self.patch_size[1]), device=self.device)
             patch_event_rates = self.calc_patch_event_rates(events, time_diff_s)
@@ -224,26 +224,31 @@ class LADS:
         self.old_surface = new_grid + self.old_surface*decay_factor
         return self.old_surface
 
-    def integrateEvents(self, events, return_patch_features=False, time_diff_s=None):
+    def integrateEvents(self, events, time_diff_s=None):
 
-        ''' TIME INITIALIZATION '''
+        if self.decay_func in ["global-li", "er"]: # Decay modes that require time difference calculation
 
-        if not self.surface_time_initialized:
-            if len(events) > 0:
-                self.old_surface_time = events[0][0]
-                self.surface_time_initialized = True
+            ''' TIME INITIALIZATION '''
+                        
+            if not self.surface_time_initialized:    
+                if len(events) > 0:
+                    self.old_surface_time = events[0][0]
+                    self.surface_time_initialized = True
 
-        if time_diff_s is None: # elapsed time for decay can be provided, otherwise calculate it
-            if events.dtype.names is None:
-                time_diff_s = (events[-1][0] - self.old_surface_time) / self.ts_to_seconds_factor
-                self.old_surface_time = events[-1][0]
-            else:
-                time_diff_s = (events['t'][-1] - self.old_surface_time) / self.ts_to_seconds_factor
-                self.old_surface_time = events['t'][-1]
-        else:
-            self.old_surface_time += time_diff_s
+            if time_diff_s is None:
+                if len(events) > 0:
+                    if events.dtype.names is None:
+                        time_diff_s = (events[-1][0] - self.old_surface_time) / self.ts_to_seconds_factor
+                        self.old_surface_time = events[-1][0]
+                    else:
+                        time_diff_s = (events['t'][-1] - self.old_surface_time) / self.ts_to_seconds_factor
+                        self.old_surface_time = events['t'][-1]
             
-        assert time_diff_s >= 0, "Time difference must be positive, got {}".format(time_diff_s)
+            elif self.surface_time_initialized:
+                self.old_surface_time += time_diff_s
+                
+            assert time_diff_s >= 0, "Time difference must be positive, got {}".format(time_diff_s)
+
 
 
         with torch.no_grad():
@@ -252,20 +257,16 @@ class LADS:
             if self.decay_func == "global-li":
                 if self.decay == 0: # Taken to mean full decay of past events, i.e. Histogram
                     return self._update_surface(0, new_events=events)
+                assert time_diff_s is not None, "Time difference must be provided for global-li if passing empty event windows."
                 decay_factor = torch.exp(-torch.scalar_tensor(time_diff_s / self.decay, device=self.device))
                 return self._update_surface(decay_factor, new_events=events)
                 
             if not self.do_patch_decay:
                 if self.decay_func == "er":
-                    decay_factor, score = self.decay_by_event_rate_exp(events, time_diff_s, use_patches=False)
+                    decay_factor, _ = self.decay_by_event_rate_exp(events, time_diff_s, use_patches=False)
                     decay_factor = torch.tensor(decay_factor, device=self.device).clamp(0, 1-self.min_decay)
                     return self._update_surface(decay_factor, new_events=events)
                 
-                elif self.decay_func == "event-rate-linear":
-                    decay_factor, score = self.decay_by_event_rate_linear(events, time_diff_s, use_patches=False)
-                    decay_factor = torch.tensor(decay_factor, device=self.device).clamp(0, 1-self.min_decay)
-                    return self._update_surface(decay_factor, new_events=events)
-
                 else:
                     print(f"Warning: {self.decay_func} decay is not implemented non-patched, continuing with default patch params.")
         
@@ -276,11 +277,6 @@ class LADS:
 
             if self.decay_func == "er":
                 patch_decay_factors, patch_scores = self.decay_by_event_rate_exp(events, time_diff_s, use_patches=True)
-
-
-            elif self.decay_func == "er-linear":
-                patch_decay_factors, patch_scores = self.decay_by_event_rate_linear(events, time_diff_s, use_patches=True)
-
 
             elif self.decay_func == "log":
                 patch_decay_factors, patch_scores = self.decay_by_LoG(new_grid)

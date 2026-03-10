@@ -153,7 +153,6 @@ def main():
 
     # Iterate through event windows
     count = 0
-
     for events in event_windows:
         if count < args.start_frame:
             count += 1
@@ -168,16 +167,9 @@ def main():
             events = events[np.where(events[:,2]<args.crop_t+args.height)[0]]
             events[:,1] -= args.crop_l
             events[:,2] -= args.crop_t
+        
 
-
-
-        if len(events) == 0: # If no events in window, can choose to provide the time passed to apply decay to existing surface anyways
-            surface, patch_scores, patch_decay_factors = leaky_model.integrateEvents(events, time_diff_s=duration)
-        else:
-            if leaky_model.old_surface_time == 0: # first (non-empty) event window, initialize old_surface_time
-                leaky_model.old_surface_time = events[0,0]
-
-            surface, patch_scores, patch_decay_factors = leaky_model.integrateEvents(events)
+        surface, patch_scores, patch_decay_factors = leaky_model.integrateEvents(events)
 
         frame = surface_to_output_img(args, surface, patch_scores, patch_decay_factors)
         cv2.imwrite(os.path.join(frame_dir,f"{str(count).zfill(4)}.png"), frame)
@@ -187,6 +179,7 @@ def main():
         count += 1
 
     if args.save_video:
+
         images = glob.glob(os.path.join(frame_dir,'*.png'))
         images = sorted(images, key = lambda x: float(x.split('\\')[-1].split('.')[0]))
 
@@ -202,7 +195,6 @@ def main():
         for path in images:
             img = cv2.imread(path)
             out.write(img)
-
         out.release()
     
     if not args.save_frames:
