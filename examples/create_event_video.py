@@ -14,11 +14,12 @@ def parse_args():
     
     # Event stream 
     parser.add_argument('--events_path', type=str,  help='Path to the events file', default="examples/face.npy")
-    parser.add_argument('--ts_to_seconds_factor', type=float, help='Factor for converting event timestamps to seconds.', default=1) ## TODO: check
+    parser.add_argument('--ts_to_seconds_factor', type=float, help='Factor for converting event timestamps to seconds', default=1) ## TODO: check
     parser.add_argument('--crop_t', type=int, help='Crop top coordinate', default=0)
     parser.add_argument('--crop_l', type=int, help='Crop left coordinate', default=0)
     parser.add_argument('--height', type=int, help='Height of events to gather for voxel (from crop_t)', default=720)
     parser.add_argument('--width', type=int, help='Width of events to gather for voxel (from crop_l)', default=1280)
+    parser.add_argument("--device", default=None, help="Run on CPU or cuda GPU. If None (default), will use cuda if available")
     
 
     # Representation & decay
@@ -34,7 +35,7 @@ def parse_args():
                                  "log",
                                  ])
     parser.add_argument('--use_presets', action='store_true', help='Load preset params for decay function', default=False)
-    parser.add_argument('--ref_event_rate', type=float, help='Event rate (events per pixel second) at which previous events are multiplied by 0 if event-rate-linear, or by exp(-decay) if event-rate-exp', default=0.5)
+    parser.add_argument('--ref_event_rate', type=float, help='Event rate (events per pixel second) that defines an er-decay factor of exp(-decay)', default=0.5)
     parser.add_argument('--falloff_rate', default=0.5, help='Controls the steepness of the decay curve for LoG ("a" in paaper)')
     parser.add_argument('--min_decay', type=float, help='Optional minimum decay rate (instead of 0 decay for minimum score)', default=None)
     parser.add_argument('--interpolate_patches', type=bool, help='Interpolate patch decay values for per-pixel decay', default=True)
@@ -50,17 +51,14 @@ def parse_args():
     parser.add_argument('--output_name', type=str, help='Optionally specify output name (w/o file extension)', default="")
     parser.add_argument('--clip_val', type=float, help='Clip value for the output images/frames', default=5)
     parser.add_argument('--draw_heatmap', type=bool, help='Heatmap of decay values on output frames', default=False)
-    parser.add_argument('--draw_grid', type=bool, help='Grid overlay on output frames', default=True)
+    parser.add_argument('--draw_grid', type=bool, help='Grid overlay on output frames', default=False)
     parser.add_argument('--annotate_score', type=bool, help='Annotate patches with local activity score used for decay', default=False)
     parser.add_argument('--annotate_decay', type=bool, help='Annotate patches with local decay factor', default=False)
     parser.add_argument('--save_frames', type=bool, help='Save frames as images', default=True)
     parser.add_argument('--save_video', type=bool, help='Save video', default=False)
     parser.add_argument('--overwrite_playback_fps', type=int, help='Playback FPS for the output video, same as FPS if None', default=None)
     parser.add_argument('--start_frame', type=int, help='Skip to start frame', default=0)
-    parser.add_argument('--max_frames', type=int, help='Maximum number of frames to process', default=None)
-    parser.add_argument('--greyscale', type=bool, help='Grid overlay on output frames', default=True)
-    
-    parser.add_argument("--device", default=None, help="Run on CPU or cuda GPU. If None (default), will use cuda if available")
+    parser.add_argument('--max_frames', type=int, help='Maximum number of frames to process', default=None)    
     
     args = parser.parse_args()
     return args
@@ -92,7 +90,6 @@ def main():
     if args.use_presets:
         args = load_preset(args)
     
-    duration = 1/args.hz
     do_patch_decay = None if (args.patch_size is None and not args.recursive_fft) else True
 
     if args.representation == "histogram":
@@ -262,7 +259,7 @@ def load_event_windows(args):
             all_events = np.load(args.events_path, allow_pickle=False)
             if all_events.dtype.names is not None:
                 all_events = np.array([all_events[name] for name in all_events.dtype.names]).T
-            max_t = all_events[-1,0]#-all_events[0,0]
+            max_t = all_events[-1,0]
             timestamps = np.arange(all_events[0,0],max_t,duration)
             
             # print("Event rate pps:", measure_event_rate(all_events,args.height,args.width))
@@ -278,39 +275,16 @@ def load_event_windows(args):
     return event_windows
 
 def surface_to_output_img(args, surface, patch_scores, patch_decay_factors):
+
     img = grid_tensor_to_img(surface, patch_scores, patch_decay_factors, 
-                               clip_val=args.clip_val, 
-                               draw_heatmap=args.draw_heatmap, 
-                               draw_grid=args.draw_grid, 
-                               annotate_score=args.annotate_score, 
-                               annotate_decay=args.annotate_decay, 
-                               recursive=args.recursive_fft)
+                             clip_val=args.clip_val, 
+                             draw_heatmap=args.draw_heatmap, 
+                             draw_grid=args.draw_grid, 
+                             annotate_score=args.annotate_score, 
+                             annotate_decay=args.annotate_decay, 
+                             recursive=(args.recursive_fft and args.decay_func == "fft"),
+                             )
 
-
-    if not isinstance(args.clip_val, tuple):
-        clip_val = (-args.clip_val, args.clip_val)
-    else:
-        clip_val = args.clip_val
-        
-    surface = surface.clamp(clip_val[0],clip_val[1])
-
-    if args.greyscale:
-        surface = (surface - clip_val[0]) / (clip_val[1] - clip_val[0]) # normalize to [0,1]
-        img = surface.squeeze(0).detach().cpu().numpy()
-        img = np.stack((img,img,img), axis=2)
-        img = (img*255).astype(np.uint8)
-    else:
-        # negative values to blue, positive to red
-        blue_channel = torch.zeros_like(surface)
-        red_channel = torch.zeros_like(surface)
-        blue_channel[surface<0] = -surface[surface<0]
-        red_channel[surface>0] = surface[surface>0]
-        colour_surface = torch.stack((blue_channel, torch.zeros_like(surface), red_channel), dim=0)  # BGR order for OpenCV
-        colour_surface = colour_surface / clip_val[1] # normalize to [0,1]
-        img = colour_surface.permute(1,2,0).detach().cpu().numpy()
-        # replace black pixels with white
-        img[np.where((img==0).all(axis=2))] = 1.0
-        img = (img*255).astype(np.uint8)
     return img
 
 if __name__ == '__main__':
