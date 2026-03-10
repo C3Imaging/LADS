@@ -1,15 +1,15 @@
 import torch
 
-def subdivide_grid_fast(grid, activity_function, dim_factor=2):
+def subdivide_grid_fast(grid, score_function, dim_factor=2):
     patch_size = grid.shape[-1] // dim_factor
     patches = grid.unsqueeze(0).unsqueeze(0).unfold(2, patch_size, patch_size).unfold(3, patch_size, patch_size).contiguous()
     patches = patches.squeeze(0).squeeze(0)
-    powers = activity_function(patches)
+    powers = score_function(patches)
     return patches, powers 
 
-def subdivide_grid_recur(grid, activity_function, min_patch_size=45, activity_threshold=0.5, stop_above_thresh=True, depth=0):
+def subdivide_grid_recur(grid, score_function, min_patch_size=45, score_threshold=0.5, stop_above_thresh=True, depth=0):
     
-    patches, powers = subdivide_grid_fast(grid, dim_factor=2, activity_function=activity_function)
+    patches, powers = subdivide_grid_fast(grid, dim_factor=2, score_function=score_function)
     ny, nx = patches.shape[0], patches.shape[1]
     ph, pw = patches.shape[2], patches.shape[3]
 
@@ -19,7 +19,7 @@ def subdivide_grid_recur(grid, activity_function, min_patch_size=45, activity_th
     if ph/2 < min_patch_size or pw/2 < min_patch_size: # return if patch size below min
         return powers
     
-    if ((powers > activity_threshold).all() and stop_above_thresh) or ((powers < activity_threshold).all() and not stop_above_thresh):
+    if ((powers > score_threshold).all() and stop_above_thresh) or ((powers < score_threshold).all() and not stop_above_thresh):
         # all patches within threshold, no need to subdivide further
         return powers
     
@@ -28,9 +28,9 @@ def subdivide_grid_recur(grid, activity_function, min_patch_size=45, activity_th
         for col in range(nx):
 
             patch_power = powers[row, col]
-            if (patch_power < activity_threshold and stop_above_thresh) or (patch_power > activity_threshold and not stop_above_thresh):
-                new_patch_powers = subdivide_grid_recur(patches[row, col], min_patch_size=min_patch_size, activity_function=activity_function,
-                                                             activity_threshold=activity_threshold, 
+            if (patch_power < score_threshold and stop_above_thresh) or (patch_power > score_threshold and not stop_above_thresh):
+                new_patch_powers = subdivide_grid_recur(patches[row, col], min_patch_size=min_patch_size, score_function=score_function,
+                                                             score_threshold=score_threshold, 
                                                               stop_above_thresh=stop_above_thresh, depth=depth+1)
 
             else:
