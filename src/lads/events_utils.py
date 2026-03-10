@@ -226,7 +226,7 @@ def LADS_to_output_frame(surface, patch_scores=None, patch_decay_factors=None,
                          clip_val=5, 
                          draw_heatmap=False, draw_grid=False, 
                          annotate_score=False, annotate_decay=False, 
-                         recursive=False, text_scale=0.8):
+                         recursive=False, text_scale=0.6):
         
         if not isinstance(clip_val, tuple):
             clip_val = (-clip_val,clip_val)
@@ -261,7 +261,7 @@ def LADS_to_output_frame(surface, patch_scores=None, patch_decay_factors=None,
                         if patch_size >= 30: #otherwise too small for text, just use heatmap
                             if annotate_score:
                                 patch_score = patch_scores[i,j]
-                                cv2.putText(frame, f"{patch_score:.2f}", (patch_x+5, patch_y+25), cv2.FONT_HERSHEY_SIMPLEX, text_scale, (255,0,0), 2)
+                                cv2.putText(frame, f"{patch_score:.2f}", (patch_x+2, patch_y+25), cv2.FONT_HERSHEY_SIMPLEX, text_scale, (255,0,0), 2)
                             
                             if annotate_decay:
                                 patch_decay_factor = patch_decay_factors[patch_y+patch_size//2,patch_x+patch_size//2].item()
@@ -271,7 +271,7 @@ def LADS_to_output_frame(surface, patch_scores=None, patch_decay_factors=None,
                                 decay_color_mapped = cv2.applyColorMap(decay_color_gray, cv2.COLORMAP_JET)[0,0]
                                 # Convert BGR to RGB and make it a tuple for OpenCV
                                 text_color = (int(decay_color_mapped[0]), int(decay_color_mapped[1]), int(decay_color_mapped[2]))
-                                cv2.putText(frame, f"{patch_decay_factor:.2f}", (patch_x+5, patch_y+50 if annotate_score else patch_y+25), cv2.FONT_HERSHEY_SIMPLEX, text_scale, text_color, 2)
+                                cv2.putText(frame, f"{patch_decay_factor:.2f}", (patch_x+2, patch_y+50 if annotate_score else patch_y+25), cv2.FONT_HERSHEY_SIMPLEX, text_scale, text_color, 2)
             else:
                 patch_size = height//patch_scores.shape[0]
                 patch_scores = patch_scores.detach().cpu().numpy()
@@ -300,7 +300,7 @@ def LADS_to_output_frame(surface, patch_scores=None, patch_decay_factors=None,
                                 cv2.line(frame, (patch_x, patch_y), (patch_x, patch_y+patch_size), line_colour, 1)
                         if patch_size >= 30 and (annotate_score or annotate_decay): #o therwise too small for text, just use heatmap
                             if (diff_from_above and diff_from_left) or (diff_from_left and i == 0) or (diff_from_above and j == 0) or (i == 0 and j == 0):
-                                cv2.putText(frame, f"{patch_score:.2f}", (patch_x+2, patch_y+14), cv2.FONT_HERSHEY_SIMPLEX, text_scale, (255,0,0), 2)
+                                cv2.putText(frame, f"{patch_score:.2f}", (patch_x+2, patch_y+25), cv2.FONT_HERSHEY_SIMPLEX, text_scale, (255,0,0), 2)
                                 
             frame = frame_orig*.65 + frame*.35
 

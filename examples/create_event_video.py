@@ -43,7 +43,7 @@ def parse_args():
 
     # Options for recursive patch decay (FFT only)
     parser.add_argument('--recursive_fft', type=bool, help='Recursively subdivide frame in quadrants to save computation (FFT method only)', default=True)
-    parser.add_argument('--min_patch_size', type=int, help='Minimum patch size for recursive patches', default=20)
+    parser.add_argument('--min_patch_size', type=int, help='Minimum patch size for recursive patches', default=40)
     parser.add_argument('--score_threshold', type=float, help='score threshold for recursive patches', default=0.85)
     
     # Visualisation and saving options
@@ -54,8 +54,8 @@ def parse_args():
     parser.add_argument('--draw_grid', type=bool, help='Grid overlay on output frames', default=False)
     parser.add_argument('--annotate_score', type=bool, help='Annotate patches with local activity score used for decay', default=False)
     parser.add_argument('--annotate_decay', type=bool, help='Annotate patches with local decay factor', default=False)
-    parser.add_argument('--save_frames', type=bool, help='Save frames as images', default=True)
-    parser.add_argument('--save_video', type=bool, help='Save video', default=False)
+    parser.add_argument('--save_frames', type=bool, help='Save frames as images', default=False)
+    parser.add_argument('--save_video', type=bool, help='Save video', default=True)
     parser.add_argument('--overwrite_playback_fps', type=int, help='Playback FPS for the output video, same as FPS if None', default=None)
     parser.add_argument('--start_frame', type=int, help='Skip to start frame', default=0)
     parser.add_argument('--max_frames', type=int, help='Maximum number of frames to process', default=None)    
@@ -80,39 +80,11 @@ def load_preset(args):
             args.recursive_fft = False
             return args
 
-def main():
-    args = parse_args()
+def main(args):
+    
 
-    if args.device is None:
-        args.device = "cuda:0" if torch.cuda.is_available() else "cpu"
+
     device = torch.device(args.device)
-    
-    if args.use_presets:
-        args = load_preset(args)
-    
-    do_patch_decay = None if (args.patch_size is None and not args.recursive_fft) else True
-
-    if args.representation == "histogram":
-        args.decay_func = "global-li" # histogram implemented as leaky time surface with full decay every frame
-        args.decay = 0
-    
-    if args.decay_func == "global-li":
-        do_patch_decay = False
-
-    # Form output path:
-    video_name = args.events_path.split("\\")[-1].split(".")[0]
-    video_name = os.path.basename(args.events_path).split(".")[0]
-    if args.output_name != "":
-        video_name = args.output_name
-        video_suffix = ""
-    else:
-        video_suffix = generate_filename_suffix(args, do_patch_decay)
-    output_dir = os.path.join(args.output_root, video_name)
-    out_video_path = video_name + video_suffix+'.mp4'
-    out_video_path = os.path.join(output_dir, out_video_path)
-    print("Saving to: ", output_dir)
-    os.makedirs(output_dir, exist_ok=True)
-
 
     # Create integrator
     leaky_model = LADS(args.height, args.width, device, ts_to_seconds_factor=args.ts_to_seconds_factor, 
@@ -120,7 +92,7 @@ def main():
                        decay_func=args.decay_func, 
                        reference_event_rate=args.ref_event_rate,
                        falloff_rate=args.falloff_rate,
-                       do_patch_decay=do_patch_decay, patch_size=args.patch_size, 
+                       do_patch_decay=args.do_patch_decay, patch_size=args.patch_size, 
                        interpolate_patches=args.interpolate_patches,
                        min_decay=args.min_decay,
                        fft_filter_radius=args.fft_filter_radius,
@@ -130,6 +102,21 @@ def main():
 
     # Load events
     event_windows = load_event_windows(args)
+
+    # Form output path:
+    # video_name = args.events_path.split("\\")[-1].split(".")[0]
+    video_name = os.path.basename(args.events_path).split(".")[0]
+    if args.output_name != "":
+        video_name = args.output_name
+        video_suffix = ""
+    else:
+        video_suffix = generate_filename_suffix(args)
+
+    output_dir = os.path.join(args.output_root, video_name)
+    out_video_path = os.path.join(output_dir, video_name + video_suffix + '.mp4')
+    print("Saving to: ", output_dir)
+    os.makedirs(output_dir, exist_ok=True)
+
 
     if args.save_frames:
         frame_dir = video_name+video_suffix
@@ -206,7 +193,7 @@ def main():
         temp_dir.cleanup()
 
 
-def generate_filename_suffix(args, do_patch_decay):
+def generate_filename_suffix(args):
     video_suffix = ""
     if args.use_event_count > 0:
         video_suffix += f"_{args.use_event_count}evs"
@@ -223,7 +210,7 @@ def generate_filename_suffix(args, do_patch_decay):
     else:
         video_suffix += "_histogram"
 
-    if do_patch_decay:
+    if args.do_patch_decay:
         if args.patch_size is not None or args.min_patch_size is not None:
             video_suffix += f"_patch{args.patch_size}" if args.patch_size is not None else f"_patch{args.min_patch_size}"
         video_suffix += "_heatmap" if args.draw_heatmap else ""
@@ -284,4 +271,24 @@ def load_event_windows(args):
 
 
 if __name__ == '__main__':
-    main()
+    args = parse_args()
+
+
+    if args.device is None:
+        args.device = "cuda:0" if torch.cuda.is_available() else "cpu"
+    
+    if args.use_presets:
+        args = load_preset(args)
+    
+    do_patch_decay = None if (args.patch_size is None and not args.recursive_fft) else True
+
+    if args.representation == "histogram":
+        args.decay_func = "global-li" # histogram implemented as leaky time surface with full decay every frame
+        args.decay = 0
+    
+    if args.decay_func == "global-li":
+        do_patch_decay = False
+    setattr(args, 'do_patch_decay', do_patch_decay)
+        
+
+    main(args)
