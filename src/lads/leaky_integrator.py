@@ -256,16 +256,16 @@ class LADS:
             ''' GLOBAL DECAY '''
             if self.decay_func == "global-li":
                 if self.decay == 0: # Taken to mean full decay of past events, i.e. Histogram
-                    return self._update_surface(0, new_events=events)
+                    return self._update_surface(0, new_events=events), 0, 0
                 assert time_diff_s is not None, "Time difference must be provided for global-li if passing empty event windows."
                 decay_factor = torch.exp(-torch.scalar_tensor(time_diff_s / self.decay, device=self.device))
-                return self._update_surface(decay_factor, new_events=events)
+                return self._update_surface(decay_factor, new_events=events), time_diff_s, decay_factor
                 
             if not self.do_patch_decay:
                 if self.decay_func == "er":
-                    decay_factor, _ = self.decay_by_event_rate_exp(events, time_diff_s, use_patches=False)
+                    decay_factor, score = self.decay_by_event_rate_exp(events, time_diff_s, use_patches=False)
                     decay_factor = torch.tensor(decay_factor, device=self.device).clamp(0, 1-self.min_decay)
-                    return self._update_surface(decay_factor, new_events=events)
+                    return self._update_surface(decay_factor, new_events=events), score, decay_factor
                 
                 else:
                     print(f"Warning: {self.decay_func} decay is not implemented non-patched, continuing with default patch params.")

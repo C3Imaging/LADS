@@ -222,33 +222,32 @@ class FixedDurationEventReader:
                     return event_window
         raise StopIteration
 
-def grid_tensor_to_img(grid, patch_scores, patch_decay_factors, clip_val=5, draw_heatmap=False, draw_grid=False, annotate_score=False, annotate_decay=False, 
-                       write_path=None, recursive=False, text_scale=0.8):
+def LADS_to_output_frame(surface, patch_scores=None, patch_decay_factors=None, 
+                         clip_val=5, 
+                         draw_heatmap=False, draw_grid=False, 
+                         annotate_score=False, annotate_decay=False, 
+                         recursive=False, text_scale=0.8):
         
         if not isinstance(clip_val, tuple):
             clip_val = (-clip_val,clip_val)
         
-        grid_ = grid.clamp(clip_val[0],clip_val[1])
-        grid_ = (grid_ - clip_val[0]) / (clip_val[1] - clip_val[0]) # normalize to [0,1]
+        surface_ = surface.clamp(clip_val[0],clip_val[1])
+        surface_ = (surface_ - clip_val[0]) / (clip_val[1] - clip_val[0]) # normalize to [0,1]
         
-        frame = grid_.squeeze(0).detach().cpu().numpy()
+        frame = surface_.squeeze(0).detach().cpu().numpy()
         frame = np.stack((frame,frame,frame), axis=2)
         frame = (frame*255).astype(np.uint8)
         frame_orig = frame.copy()
         height, width = frame.shape[0], frame.shape[1]
 
-        if draw_grid or annotate_score or annotate_decay:
+        if draw_grid or (annotate_score and patch_scores is not None) or (annotate_decay and patch_decay_factors is not None):
             line_colour = (100, 255, 100)
             if not recursive:
                 patch_size = height//patch_scores.shape[0]
                 patch_scores = patch_scores.detach().cpu().numpy()
-                # patch_scores_laplace = filters.laplace(patch_scores)
-                # patch_scores = local_info_gain(patch_scores)
+
                 num_patches_y, num_patches_x = patch_scores.shape[-2], patch_scores.shape[-1]
-                # if len(patch_scores.shape) > 2:
-                #     _, num_patches_y, num_patches_x = patch_scores.shape[0], patch_scores.shape[1]
-                # else:
-                # num_patches_y, num_patches_x = patch_scores.shape[1], patch_scores.shape[2]
+                
                 for i in range(num_patches_y):
                     #draw horizontal patch lines at 50% opacity
                     patch_y = i*patch_size
@@ -262,7 +261,7 @@ def grid_tensor_to_img(grid, patch_scores, patch_decay_factors, clip_val=5, draw
                         if patch_size >= 30: #otherwise too small for text, just use heatmap
                             if annotate_score:
                                 patch_score = patch_scores[i,j]
-                                cv2.putText(frame, f"{patch_score:.2f}", (patch_x+5, patch_y+25), cv2.FONT_HERSHEY_SIMPLEX, text_scale, (255,0,0), 1)
+                                cv2.putText(frame, f"{patch_score:.2f}", (patch_x+5, patch_y+25), cv2.FONT_HERSHEY_SIMPLEX, text_scale, (255,0,0), 2)
                             
                             if annotate_decay:
                                 patch_decay_factor = patch_decay_factors[patch_y+patch_size//2,patch_x+patch_size//2].item()
@@ -272,9 +271,8 @@ def grid_tensor_to_img(grid, patch_scores, patch_decay_factors, clip_val=5, draw
                                 decay_color_mapped = cv2.applyColorMap(decay_color_gray, cv2.COLORMAP_JET)[0,0]
                                 # Convert BGR to RGB and make it a tuple for OpenCV
                                 text_color = (int(decay_color_mapped[0]), int(decay_color_mapped[1]), int(decay_color_mapped[2]))
-                                cv2.putText(frame, f"{patch_decay_factor:.2f}", (patch_x+5, patch_y+50 if annotate_score else patch_y+25), cv2.FONT_HERSHEY_SIMPLEX, text_scale, text_color, 1)
+                                cv2.putText(frame, f"{patch_decay_factor:.2f}", (patch_x+5, patch_y+50 if annotate_score else patch_y+25), cv2.FONT_HERSHEY_SIMPLEX, text_scale, text_color, 2)
             else:
-
                 patch_size = height//patch_scores.shape[0]
                 patch_scores = patch_scores.detach().cpu().numpy()
                 num_patches_y, num_patches_x = patch_scores.shape[-2], patch_scores.shape[-1]
@@ -288,6 +286,7 @@ def grid_tensor_to_img(grid, patch_scores, patch_decay_factors, clip_val=5, draw
                         patch_score = patch_scores[i,j]
                         diff_from_above = False
                         diff_from_left = False
+                        
                         # Draw patch lines where score is different to neighbour (for visualisation of recursive subdivision)
                         if i > 0:
                             if patch_score != patch_scores[i-1,j]:
@@ -299,13 +298,12 @@ def grid_tensor_to_img(grid, patch_scores, patch_decay_factors, clip_val=5, draw
                                 diff_from_left = True
                                 # draw vertical line on left of patch
                                 cv2.line(frame, (patch_x, patch_y), (patch_x, patch_y+patch_size), line_colour, 1)
-                        if patch_size >= 30 and annotate_score: #otherwise too small for text, just use heatmap
+                        if patch_size >= 30 and (annotate_score or annotate_decay): #o therwise too small for text, just use heatmap
                             if (diff_from_above and diff_from_left) or (diff_from_left and i == 0) or (diff_from_above and j == 0) or (i == 0 and j == 0):
-                                cv2.putText(frame, f"{patch_score:.2f}", (patch_x+2, patch_y+14), cv2.FONT_HERSHEY_SIMPLEX, text_scale, (255,0,0), 1)
-
-                            # patch_decay_factor = patch_decay_factors[patch_y, patch_x].item()
-                            # cv2.putText(frame, f"{patch_decay_factor:.2f}", (patch_x+2, patch_y+30), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255,0,0), 1)
+                                cv2.putText(frame, f"{patch_score:.2f}", (patch_x+2, patch_y+14), cv2.FONT_HERSHEY_SIMPLEX, text_scale, (255,0,0), 2)
+                                
             frame = frame_orig*.65 + frame*.35
+
         if draw_heatmap:
             decay_grid = patch_decay_factors.detach().cpu().numpy()
             decay_grid = np.clip(decay_grid, 0, 1)
@@ -315,11 +313,8 @@ def grid_tensor_to_img(grid, patch_scores, patch_decay_factors, clip_val=5, draw
             decay_grid = (decay_grid * 255).astype(np.uint8)
             decay_grid = cv2.applyColorMap(decay_grid, cv2.COLORMAP_JET)
             frame = 0.9*frame + 0.1*decay_grid
-            
             frame = frame.astype(np.uint8)
 
-        if write_path is not None:
-            cv2.imwrite(write_path, frame)
         return frame
 
 

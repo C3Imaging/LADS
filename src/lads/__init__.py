@@ -13,7 +13,7 @@ from .events_utils import (
     pad_events,
     FixedSizeEventReader,
     FixedDurationEventReader,
-    grid_tensor_to_img
+    LADS_to_output_frame,
 )
 
 # Import recursive patch processing utilities
@@ -33,7 +33,7 @@ __all__ = [
     'voxel',
     'crop_events',
     'pad_events',
-    'grid_tensor_to_img',
+    'LADS_to_output_frame',
     
     # Recursive patch utilities
     'subdivide_grid_fast',

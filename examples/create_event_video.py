@@ -168,7 +168,15 @@ def main():
 
         surface, patch_scores, patch_decay_factors = leaky_model.integrateEvents(events)
 
-        frame = surface_to_output_img(args, surface, patch_scores, patch_decay_factors)
+        frame = LADS_to_output_frame(surface, patch_scores, patch_decay_factors, 
+                                     clip_val=args.clip_val, 
+                                     draw_heatmap=args.draw_heatmap, 
+                                     draw_grid=args.draw_grid, 
+                                     annotate_score=args.annotate_score, 
+                                     annotate_decay=args.annotate_decay, 
+                                     recursive=(args.recursive_fft and args.decay_func == "fft"),
+                                     )
+        
         cv2.imwrite(os.path.join(frame_dir,f"{str(count).zfill(4)}.png"), frame)
 
         if args.max_frames is not None and count >= args.start_frame + args.max_frames - 1:
@@ -274,18 +282,6 @@ def load_event_windows(args):
 
     return event_windows
 
-def surface_to_output_img(args, surface, patch_scores, patch_decay_factors):
-
-    img = grid_tensor_to_img(surface, patch_scores, patch_decay_factors, 
-                             clip_val=args.clip_val, 
-                             draw_heatmap=args.draw_heatmap, 
-                             draw_grid=args.draw_grid, 
-                             annotate_score=args.annotate_score, 
-                             annotate_decay=args.annotate_decay, 
-                             recursive=(args.recursive_fft and args.decay_func == "fft"),
-                             )
-
-    return img
 
 if __name__ == '__main__':
     main()
