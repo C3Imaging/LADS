@@ -1,0 +1,11 @@
+examples/
+output/
+.conda/
+
+dist/
+build/
+*.egg-info/
+
+__pycache__/
+*.pyc
+*.pyo

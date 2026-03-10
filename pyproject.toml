@@ -1,0 +1,29 @@
+[build-system]
+requires = ["hatchling >= 1.26"]
+build-backend = "hatchling.build"
+
+[project]
+name = "lads"
+version = "0.0.1"
+authors = [{name = "Paul Kielty", email = "dev@paul-kielty.com"}]
+description = "Locally Adaptive Decay Surfaces for event data representation."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+classifiers = ["Programming Language :: Python :: 3.10"]
+keywords = ["computer vision", "event cameras"]
+
+dependencies = [
+    "matplotlib>=3.7.2",
+    "numpy>=1.26.4",
+    "opencv-python>=4.8.0.76",
+    "pandas>=2.0.3",
+    "torch>=1.12.1",
+    "torchvision>=0.13.1",
+    "tqdm>=4.66.0"
+]
+
+
+[project.urls]
+Homepage = "https://github.com/C3Imaging/LADS"
+Issues = "https://github.com/C3Imaging/LADS/issues"
