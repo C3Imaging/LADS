@@ -65,6 +65,7 @@ def parse_args():
 
 
 def load_preset(args):
+
     match args.decay_func:
         case "fixed-exponential":
             args.patch_size = None
@@ -75,10 +76,11 @@ def load_preset(args):
             return args
 
         case "log":
-            args.decay = 0.75
-            args.falloff_rate = 0.75
+            args.decay = 5
+            args.falloff_rate = 0.5
             args.recursive_fft = False
             return args
+    return args
 
 def main(args):
     
@@ -200,13 +202,13 @@ def generate_filename_suffix(args):
     video_suffix += f"_{args.hz}fps"
     if args.representation == "timesurface":
         if args.decay_func == "fixed-exponential":
-            video_suffix += f"_fixed-decay"+str(args.decay).replace(".","")
+            video_suffix += f"_fixed-decay"+str(args.decay).replace(".","-")
         elif  "event-rate" in args.decay_func:
-            video_suffix += "_event-rate"+str(args.ref_event_rate).replace(".","")+f"_{args.decay_func.replace('event-rate-','')}"+str(args.decay).replace(".","")
+            video_suffix += "_event-rate"+str(args.ref_event_rate).replace(".","-")+f"_{args.decay_func.replace('event-rate-','')}"+str(args.decay).replace(".","")
         elif args.decay_func == "fft":
-            video_suffix += f"_fft"+str(args.fft_filter_radius).replace(".","")
+            video_suffix += f"_fft"+str(args.fft_filter_radius).replace(".","-")
         else:
-            video_suffix += "_"+args.decay_func+str(args.decay).replace(".","")
+            video_suffix += "_"+args.decay_func+str(args.decay).replace(".","-")
     else:
         video_suffix += "_histogram"
 
@@ -272,8 +274,7 @@ def load_event_windows(args):
 
 if __name__ == '__main__':
     args = parse_args()
-
-
+    
     if args.device is None:
         args.device = "cuda:0" if torch.cuda.is_available() else "cpu"
     
