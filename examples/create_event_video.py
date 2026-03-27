@@ -82,13 +82,11 @@ def load_preset(args):
     return args
 
 def main(args):
-    
-
-
-    device = torch.device(args.device)
 
     # Create integrator
-    leaky_model = LADS(args.height, args.width, device, ts_to_seconds_factor=args.ts_to_seconds_factor, 
+    leaky_model = LADS(args.height, args.width, 
+                       torch.device(args.device), 
+                       ts_to_seconds_factor=args.ts_to_seconds_factor, 
                        decay_param=args.decay_param,
                        decay_func=args.decay_func, 
                        reference_event_rate=args.ref_event_rate,
