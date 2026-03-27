@@ -93,7 +93,7 @@ def main(args):
                        decay_func=args.decay_func, 
                        reference_event_rate=args.ref_event_rate,
                        falloff_rate=args.falloff_rate,
-                       do_patch_decay=args.do_patch_decay, patch_size=args.patch_size, 
+                       patch_size=args.patch_size, 
                        interpolate_patches=args.interpolate_patches,
                        min_decay=args.min_decay,
                        fft_filter_radius=args.fft_filter_radius,

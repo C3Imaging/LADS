@@ -6,7 +6,7 @@ class LADS:
     def __init__(self, H, W, device, ts_to_seconds_factor=1, num_bins=1, 
                  decay_func="ER", decay_param = 0.2, 
                  reference_event_rate=16, falloff_rate=None, 
-                 do_patch_decay=False, patch_size=None, interpolate_patches=True,
+                 patch_size=None, interpolate_patches=True,
                  min_decay=None,
                  fft_filter_radius=0.05,
                  recursive=False, min_patch_size=0, score_threshold=0.5, stop_above_thresh=True):
@@ -35,10 +35,8 @@ class LADS:
             raise ValueError(f"decay_func must be one of {decay_funcs}, got {decay_func} instead.")
         self.decay_func = decay_func
         
-
-        self.do_patch_decay = do_patch_decay
         self.patch_size = patch_size
-        if self.do_patch_decay and self.patch_size is not None:
+        if self.patch_size is not None:
             if isinstance(self.patch_size, int):
                 self.patch_size = (self.patch_size, self.patch_size)    
             self.patch_score_conv = torch.nn.Conv2d(1, 1, kernel_size=self.patch_size, stride=self.patch_size, padding=0, bias=False, device=device)           
@@ -261,14 +259,14 @@ class LADS:
                 decay_factor = torch.exp(-torch.scalar_tensor(time_diff_s / self.decay_param, device=self.device))
                 return self._update_surface(decay_factor, new_events=events), time_diff_s, decay_factor
                 
-            if not self.do_patch_decay:
+            if self.patch_size is None:
                 if self.decay_func == "er":
                     decay_factor, score = self.decay_by_event_rate_exp(events, time_diff_s, use_patches=False)
                     decay_factor = torch.tensor(decay_factor, device=self.device).clamp(0, 1-self.min_decay)
                     return self._update_surface(decay_factor, new_events=events), score, decay_factor
                 
                 else:
-                    print(f"Warning: {self.decay_func} decay is not implemented non-patched, continuing with default patch params.")
+                    print(f"{self.decay_func} is not implemented non-patched.")
         
 
             ''' LOCAL DECAY '''
