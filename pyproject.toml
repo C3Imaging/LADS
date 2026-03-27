@@ -3,8 +3,8 @@ requires = ["hatchling >= 1.26"]
 build-backend = "hatchling.build"
 
 [project]
-name = "lads"
-version = "0.0.1"
+name = "event-lads"
+version = "0.1"
 authors = [{name = "Paul Kielty", email = "dev@paul-kielty.com"}]
 description = "Locally Adaptive Decay Surfaces for event data representation."
 readme = "README.md"

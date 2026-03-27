@@ -3,7 +3,7 @@ import os
 import numpy as np
 import argparse
 import torch
-from lads import *
+from event_lads import *
 import glob
 from tempfile import TemporaryDirectory
 from tqdm import tqdm

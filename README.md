@@ -1,24 +1,24 @@
 # Locally Adaptive Decay Surfaces (LADS)
 
-Python package (WIP) for event-based vision processing with LADS, preprint available [here](https://arxiv.org/abs/2602.23101).
+Python package for event-based vision processing with LADS, paper preprint available [here](https://arxiv.org/abs/2602.23101).
 
 
 ![Demo](https://github.com/C3Imaging/LADS/blob/main/assets/face_demo.gif?raw=true "LADS Demo GIF")
 
-<!-- ## Installation
+## Installation
 You can install the package using:
 ```bash
-pip install lads
-``` -->
+pip install event-lads
+```
 
 ## Usage
-The `LADS` class is the core of this package and is used to integrate event data into locally adaptive decay surfaces. See the code snippet below for sample usage:
-
+The `LADS` class is the core of this package and is used to integrate event data into locally adaptive decay surfaces. See the code snippet below for sample usage. 
+A full implementation for all decay functions with a [real event clip](https://github.com/C3Imaging/LADS/blob/main/examples/face.npy) is provided in [create_event_video.py](https://github.com/C3Imaging/LADS/blob/main/examples/create_event_video.py).
 
 ```python
 import torch
 import numpy as np
-from lads.leaky_integrator import LADS
+from event_lads import *
 import matplotlib.pyplot as plt
 
 # Initialize LADS
@@ -61,4 +61,3 @@ plt.imshow(frame, cmap='gray')
 plt.show()
 ```
 
-A full implementation for all decay functions with [real events](https://github.com/C3Imaging/LADS/blob/main/examples/face.npy) is provided in [create_event_video.py](https://github.com/C3Imaging/LADS/blob/main/examples/create_event_video.py).

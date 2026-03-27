@@ -1,5 +1,5 @@
-from lads.recursive_patches import *
-from lads.events_utils import *
+from event_lads.recursive_patches import *
+from event_lads.events_utils import *
 from torch.nn.functional import conv2d
 
 class LADS:
