@@ -4,7 +4,7 @@ Locally Adaptive Decay Surfaces Package
 """
 
 # Import main classes
-from .leaky_integrator import LADS
+from .LADS import LADS
 
 # Import event utilities
 from .events_utils import (
