@@ -26,7 +26,7 @@ def parse_args():
     parser.add_argument('--hz', type=int, help='Event accumulation frequency (1/<duration of event windows>)', default=30)
     parser.add_argument('--use_event_count', type=int, help='Override duration-based windowing with fixed event count', default=0)
     parser.add_argument('--representation', help='Representation of the output video', default="timesurface", choices=["timesurface", "histogram"])
-    parser.add_argument('--decay', type=float, help='Parameter for scaling decay ("τ" in paper), effect changes depending on decay_func', default=0.2)
+    parser.add_argument('--decay_param', type=float, help='Parameter for scaling decay ("τ" in paper), effect changes depending on decay_func', default=0.2)
     parser.add_argument('--patch_size', type=int, help='Patch size for local adaptive decay, None for full height and width', default=80)
     parser.add_argument('--decay_func', type=str.lower, help='Function for decay rate calulation', default="er", 
                         choices=["global-li",
@@ -39,12 +39,12 @@ def parse_args():
     parser.add_argument('--falloff_rate', default=0.5, help='Controls the steepness of the decay curve for LoG ("a" in paaper)')
     parser.add_argument('--min_decay', type=float, help='Optional minimum decay rate (instead of 0 decay for minimum score)', default=None)
     parser.add_argument('--interpolate_patches', type=bool, help='Interpolate patch decay values for per-pixel decay', default=True)
-    parser.add_argument('--fft_filter_radius', type=float, help='Radius for FFT filter as a fraction of patch size', default=0.25)
+    parser.add_argument('--fft_filter_radius', type=float, help='Radius for FFT filter as a fraction of patch size', default=0.05)
 
     # Options for recursive patch decay (FFT only)
     parser.add_argument('--recursive_fft', type=bool, help='Recursively subdivide frame in quadrants to save computation (FFT method only)', default=True)
     parser.add_argument('--min_patch_size', type=int, help='Minimum patch size for recursive patches', default=40)
-    parser.add_argument('--score_threshold', type=float, help='score threshold for recursive patches', default=0.85)
+    parser.add_argument('--score_threshold', type=float, help='score threshold for recursive patches', default=0.9)
     
     # Visualisation and saving options
     parser.add_argument('--output_root', type=str, help='Output root directory', default="output")
@@ -76,9 +76,8 @@ def load_preset(args):
             return args
 
         case "log":
-            args.decay = 5
+            args.decay_param = 5
             args.falloff_rate = 0.5
-            args.recursive_fft = False
             return args
     return args
 
@@ -90,7 +89,7 @@ def main(args):
 
     # Create integrator
     leaky_model = LADS(args.height, args.width, device, ts_to_seconds_factor=args.ts_to_seconds_factor, 
-                       decay=args.decay,
+                       decay_param=args.decay_param,
                        decay_func=args.decay_func, 
                        reference_event_rate=args.ref_event_rate,
                        falloff_rate=args.falloff_rate,
@@ -202,13 +201,13 @@ def generate_filename_suffix(args):
     video_suffix += f"_{args.hz}fps"
     if args.representation == "timesurface":
         if args.decay_func == "fixed-exponential":
-            video_suffix += f"_fixed-decay"+str(args.decay).replace(".","-")
+            video_suffix += f"_fixed-decay"+str(args.decay_param).replace(".","-")
         elif  "event-rate" in args.decay_func:
-            video_suffix += "_event-rate"+str(args.ref_event_rate).replace(".","-")+f"_{args.decay_func.replace('event-rate-','')}"+str(args.decay).replace(".","")
+            video_suffix += "_event-rate"+str(args.ref_event_rate).replace(".","-")+f"_{args.decay_func.replace('event-rate-','')}"+str(args.decay_param).replace(".","")
         elif args.decay_func == "fft":
             video_suffix += f"_fft"+str(args.fft_filter_radius).replace(".","-")
         else:
-            video_suffix += "_"+args.decay_func+str(args.decay).replace(".","-")
+            video_suffix += "_"+args.decay_func+str(args.decay_param).replace(".","-")
     else:
         video_suffix += "_histogram"
 
@@ -285,11 +284,10 @@ if __name__ == '__main__':
 
     if args.representation == "histogram":
         args.decay_func = "global-li" # histogram implemented as leaky time surface with full decay every frame
-        args.decay = 0
+        args.decay_param = 0
     
     if args.decay_func == "global-li":
         do_patch_decay = False
     setattr(args, 'do_patch_decay', do_patch_decay)
-        
-
+    
     main(args)

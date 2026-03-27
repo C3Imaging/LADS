@@ -4,7 +4,7 @@ from torch.nn.functional import conv2d
 
 class LADS:
     def __init__(self, H, W, device, ts_to_seconds_factor=1, num_bins=1, 
-                 decay_func="ER", decay = 0.2, 
+                 decay_func="ER", decay_param = 0.2, 
                  reference_event_rate=16, falloff_rate=None, 
                  do_patch_decay=False, patch_size=None, interpolate_patches=True,
                  min_decay=None,
@@ -20,7 +20,7 @@ class LADS:
         self.ts_to_seconds_factor = ts_to_seconds_factor
         self.num_bins = num_bins
         self.interpolate_patches = interpolate_patches
-        self.decay = decay
+        self.decay_param = decay_param
         self.reference_event_rate = reference_event_rate
         self.recursive = recursive
         self.min_patch_size = min_patch_size
@@ -44,9 +44,9 @@ class LADS:
             self.patch_score_conv = torch.nn.Conv2d(1, 1, kernel_size=self.patch_size, stride=self.patch_size, padding=0, bias=False, device=device)           
             self.patch_score_conv.weight.data.fill_(1)
             self.patch_score_conv.weight.requires_grad = False
-            self.reference_event_rate = reference_event_rate*self.patch_size[0]*self.patch_size[1] # Event rate that sets centres decay at self.decay
+            self.reference_event_rate = reference_event_rate*self.patch_size[0]*self.patch_size[1] # Event rate that sets centres decay at self.decay_param
         else:
-            self.reference_event_rate = reference_event_rate*H*W # Event rate that sets centres decay at self.decay
+            self.reference_event_rate = reference_event_rate*H*W # Event rate that sets centres decay at self.decay_param
 
         if falloff_rate is None: # Controls the steepness of the score-decay curve
             default_falloffs = {"log": 0.25} # just LoG for now
@@ -93,7 +93,7 @@ class LADS:
                 return 1, 0
             event_rate = len(events) / time_diff_s
             score = event_rate / self.reference_event_rate
-            decay_factor = np.exp((-(self.decay*score)))
+            decay_factor = np.exp((-(self.decay_param*score)))
             return decay_factor, score
         else:
             if time_diff_s <= 0 or len(events) == 0:
@@ -103,7 +103,7 @@ class LADS:
             patch_scores = patch_event_rates/self.reference_event_rate
             # decay scales exonentially with score, but unlike event-rate-linear, does not hit 1 when equal to reference rate
             # when equal to reference rate, decay is exp(-decay)
-            patch_decay_factors = torch.exp(((-time_diff_s*patch_scores)/self.decay))
+            patch_decay_factors = torch.exp(((-time_diff_s*patch_scores)/self.decay_param))
             return patch_decay_factors, patch_scores
     
     def decay_by_event_rate_linear(self, events, time_diff_s, use_patches=False):
@@ -136,7 +136,7 @@ class LADS:
             patch_scores = patch_means
         
         a = self.falloff_rate
-        b = self.decay#*100
+        b = self.decay_param#*100
         patch_decay_factors = (1.0 + np.exp(-a*(b))) / (1.0 + torch.exp(a * (patch_scores - b)))
         return patch_decay_factors, patch_scores
 
@@ -255,10 +255,10 @@ class LADS:
 
             ''' GLOBAL DECAY '''
             if self.decay_func == "global-li":
-                if self.decay == 0: # Taken to mean full decay of past events, i.e. Histogram
+                if self.decay_param == 0: # Taken to mean full decay of past events, i.e. Histogram
                     return self._update_surface(0, new_events=events), 0, 0
                 assert time_diff_s is not None, "Time difference must be provided for global-li if passing empty event windows."
-                decay_factor = torch.exp(-torch.scalar_tensor(time_diff_s / self.decay, device=self.device))
+                decay_factor = torch.exp(-torch.scalar_tensor(time_diff_s / self.decay_param, device=self.device))
                 return self._update_surface(decay_factor, new_events=events), time_diff_s, decay_factor
                 
             if not self.do_patch_decay:
