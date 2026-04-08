@@ -265,7 +265,7 @@ class LADS:
                     decay_factor = torch.tensor(decay_factor, device=self.device).clamp(0, 1-self.min_decay)
                     return self._update_surface(decay_factor, new_events=events), score, decay_factor
                 
-                else:
+                elif self.decay_func != "fft":
                     print(f"{self.decay_func} is not implemented non-patched.")
         
 
