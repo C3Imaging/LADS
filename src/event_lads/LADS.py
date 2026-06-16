@@ -224,7 +224,7 @@ class LADS:
 
     def integrateEvents(self, events, time_diff_s=None):
 
-        if self.decay_func in ["global-li", "er"]: # Decay modes that require time difference calculation
+        if self.decay_param != 0 and self.decay_func in ["global-li", "er"]: # Decay modes that require time difference calculation
 
             ''' TIME INITIALIZATION '''
                         
